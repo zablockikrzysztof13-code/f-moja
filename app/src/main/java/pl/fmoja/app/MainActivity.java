@@ -9,6 +9,7 @@ import android.webkit.ValueCallback;
 import android.webkit.WebSettings;
 import android.net.Uri;
 public class MainActivity extends Activity {
+  // Offline application; CSV files are selected through Android's file picker.
   private WebView web; private ValueCallback<Uri[]> chooser; private static final int FILE_PICKER=101;
   @Override public void onCreate(Bundle b){super.onCreate(b);web=new WebView(this);setContentView(web);
     WebSettings s=web.getSettings();s.setJavaScriptEnabled(true);s.setDomStorageEnabled(true);s.setAllowFileAccess(true);s.setAllowFileAccessFromFileURLs(true);
