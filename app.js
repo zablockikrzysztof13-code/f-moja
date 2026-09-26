@@ -11,3 +11,7 @@ function setInvoiceDefaults(){let d=new Date(),s=d.toISOString().slice(0,10),due
 setInvoiceDefaults();
 
 function togglePaid(i){if(!db.invoices[i])return;db.invoices[i].paid=!db.invoices[i].paid;persist()}
+
+function downloadCsv(name,rows){let csv=rows.map(r=>r.map(v=>'"'+String(v??'').replaceAll('"','""')+'"').join(';')).join('\n'),a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['\ufeff'+csv],{type:'text/csv'}));a.download=name;a.click()}
+function exportInvoicesCsv(){downloadCsv('F-Moja-faktury.csv',[['Numer','Data','Sprzedaz','Nabywca','NIP','Netto','VAT','Brutto','Termin','Status'],...db.invoices.map(x=>[x.number,x.date,x.saleDate,x.buyer,x.buyerNip,x.net,x.vat,x.gross,x.dueDate,x.paid?'oplacona':'nieoplacona'])])}
+function exportCostsCsv(){downloadCsv('F-Moja-koszty.csv',[['Data','Dokument','Dostawca','Opis','Netto/Koszt','VAT','Kategoria'],...db.costs.map(x=>[x.date,x.doc,x.supplier,x.desc,x.net??x.gross,x.vat??'',x.type])])}
