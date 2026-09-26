@@ -1,4 +1,5 @@
 name: Build Android APK
+# Re-trigger APK build after Android project setup
 on:
   push:
     branches: [main]
