@@ -3,9 +3,49 @@ const key='fmoja-data';let db=JSON.parse(localStorage.getItem(key)||'{"invoices"
 
 function restoreData(){let f=document.getElementById('restoreFile').files[0];if(!f)return alert('Wybierz plik kopii JSON.');let r=new FileReader();r.onload=()=>{try{let x=JSON.parse(r.result);if(!x||!Array.isArray(x.kpir))throw 0;db=x;db.invoices??=[];db.costs??=[];db.contractors??=[];db.products??=[];persist();alert('Kopia została wczytana.')}catch(e){alert('Nieprawidłowy plik kopii.')}};r.readAsText(f)}
 
-function parseCsvLines(t){return t.replace(/^\uFEFF/,'').split(/\r?\n/).filter(x=>x.trim()).map(x=>{let d=x.includes(';')?';':',';return x.split(d).map(v=>v.trim().replace(/^"|"$/g,''))})}
-function importContractors(){let f=document.getElementById('contractorCsv').files[0];if(!f)return alert('Wybierz CSV kontrahentów.');let r=new FileReader();r.onload=()=>{let rows=parseCsvLines(r.result),n=0;rows.slice(1).forEach(a=>{let name=(a.find(v=>v&&v.length>2&&!/^\d+[.,]?\d*$/.test(v))||'').trim();if(name&&!db.contractors.includes(name)){db.contractors.push(name);n++}});persist();alert('Zaimportowano kontrahentów: '+n)};r.readAsText(f,'windows-1250')}
-function importProducts(){let f=document.getElementById('productCsv').files[0];if(!f)return alert('Wybierz CSV towarów.');let r=new FileReader();r.onload=()=>{let rows=parseCsvLines(r.result),n=0;rows.slice(1).forEach(a=>{let name=(a.find(v=>v&&v.length>1&&!/^\d+[.,]?\d*$/.test(v))||'').trim();if(name&&!db.products.includes(name)){db.products.push(name);n++}});persist();alert('Zaimportowano towary/usługi: '+n)};r.readAsText(f,'windows-1250')}
+function parseCsvLines(text){
+  text=String(text||'').replace(/^\uFEFF/,'');
+  const first=text.split(/\r?\n/).find(line=>line.trim())||'';
+  const count=(line,delimiter)=>{let q=false,n=0;for(let i=0;i<line.length;i++){if(line[i]==='"'){if(q&&line[i+1]==='"')i++;else q=!q}else if(line[i]===delimiter&&!q)n++}return n};
+  const delimiter=[';',',','\t'].sort((a,b)=>count(first,b)-count(first,a))[0];
+  const rows=[];let row=[],cell='',quoted=false;
+  for(let i=0;i<text.length;i++){const ch=text[i];if(ch==='"'){if(quoted&&text[i+1]==='"'){cell+='"';i++}else quoted=!quoted}
+    else if(ch===delimiter&&!quoted){row.push(cell.trim());cell=''}
+    else if((ch==='\n'||ch==='\r')&&!quoted){if(ch==='\r'&&text[i+1]==='\n')i++;row.push(cell.trim());if(row.some(Boolean))rows.push(row);row=[];cell=''}
+    else cell+=ch;
+  }
+  row.push(cell.trim());if(row.some(Boolean))rows.push(row);
+  return rows;
+}
+function csvNameIndex(header,kind){
+  const patterns=kind==='contractors'?[/^nazwa$/, /nazwa.*(kontrahent|firm)/, /kontrahent/, /firma/, /pelna.*nazwa/, /name/]:[/^nazwa$/, /nazwa.*(towar|produkt|uslug)/, /towar/, /produkt/, /asortyment/, /name/];
+  const normalized=header.map(x=>String(x).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/ł/g,'l').trim());
+  for(const p of patterns){const idx=normalized.findIndex(h=>p.test(h));if(idx>=0)return idx}
+  return -1;
+}
+function importMegaCsv(inputId,kind){
+  const file=document.getElementById(inputId).files[0];if(!file)return alert('Wybierz plik CSV.');
+  const reader=new FileReader();
+  reader.onload=()=>{
+    const text=String(reader.result||'');
+    const rows=parseCsvLines(text);if(!rows.length)return alert('Plik CSV jest pusty.');
+    let idx=csvNameIndex(rows[0],kind),start=idx>=0?1:0;
+    if(idx<0){const guess=rows[0].findIndex(v=>v.trim().length>2&&!/^\d+([,.]\d+)?$/.test(v));idx=guess>=0?guess:0;if(!confirm('Nie rozpoznano nagłówka nazwy. Użyć kolumny '+(idx+1)+'?'))return}
+    const target=kind==='contractors'?db.contractors:db.products;
+    const existing=new Set(target.map(v=>String(v).trim().toLocaleLowerCase('pl')));
+    let added=0,skipped=0;
+    for(const row of rows.slice(start)){
+      const name=String(row[idx]||'').trim();
+      if(!name||existing.has(name.toLocaleLowerCase('pl'))){skipped++;continue}
+      target.push(name);existing.add(name.toLocaleLowerCase('pl'));added++;
+    }
+    persist();alert('Zaimportowano: '+added+'. Pominięto puste lub powtórzone: '+skipped+'.');
+  };
+  reader.onerror=()=>alert('Nie udało się odczytać pliku.');
+  reader.readAsText(file,'windows-1250');
+}
+function importContractors(){importMegaCsv('contractorCsv','contractors')}
+function importProducts(){importMegaCsv('productCsv','products')}
 
 function setInvoiceDefaults(){let d=new Date(),s=d.toISOString().slice(0,10),due=new Date(d);due.setDate(due.getDate()+14);let a=document.getElementById('invoiceDate'),b=document.getElementById('saleDate'),c=document.getElementById('dueDate');if(a&&!a.value)a.value=s;if(b&&!b.value)b.value=s;if(c&&!c.value)c.value=due.toISOString().slice(0,10)}
 setInvoiceDefaults();
